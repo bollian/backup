@@ -58,6 +58,8 @@ import "C"
 
 // buildTarHeader runs Lstat on the provided path and returns a tar header with
 // all the information converted over.  Returns nil on error.
+//
+// TODO: include device major and minor numbers
 func buildTarHeader(path string) *tar.Header {
 	var info unix.Stat_t
 	err := unix.Lstat(path, &info)
