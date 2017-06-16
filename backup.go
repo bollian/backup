@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"compress/gzip"
+
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -201,7 +203,9 @@ func runBuild(listPaths []string, outPaths []string) error {
 	// archiver := tar.NewWriter(aesStream)
 	// defer archiver.Close()
 
-	archiver := tar.NewWriter(output)
+	compressor := gzip.NewWriter(output)
+	defer compressor.Close()
+	archiver := tar.NewWriter(compressor)
 	defer archiver.Close()
 
 	for _, path := range fileList {
@@ -443,7 +447,7 @@ func restore(args []string) error {
 		switch arg {
 		case "--help", "-h":
 			fmt.Println(`Usage:
-	backup restore [--help] <backup_file>
+	backup restore [--help] <backup_file> 
 
 Restores the files provided in the given backup archive.`)
 			return nil
