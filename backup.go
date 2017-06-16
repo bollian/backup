@@ -162,11 +162,6 @@ func runBuild(listPaths []string, outPaths []string) error {
 		file.Close()
 	}
 
-	fileList, err := compileStages(stages)
-	if err != nil {
-		return err
-	}
-
 	var output io.Writer
 	if len(outPaths) == 0 {
 		output = os.Stdout
@@ -185,6 +180,16 @@ func runBuild(listPaths []string, outPaths []string) error {
 		} else {
 			output = io.MultiWriter(opened...)
 		}
+	}
+
+	err := goHome()
+	if err != nil {
+		return fmt.Errorf("Unable to chdir into home directory: %s", err.Error())
+	}
+
+	fileList, err := compileStages(stages)
+	if err != nil {
+		return err
 	}
 
 	// aesStream, err := setupCryptoStream(output)
@@ -230,30 +235,10 @@ func loadStages(file *os.File, stages []buildStage) ([]buildStage, error) {
 		case "": // don't add empty lines
 		default:
 			if stage == nil {
+				// if we haven't reached an [include] or [exclude] header
 				continue
 			}
 
-			// normalize the globs
-			if strings.HasPrefix(line, "~"+string(os.PathSeparator)) || line == "~" {
-				// insert the current user's home directory
-				home, err := getHomeDir("")
-				if err != nil || home == "" {
-					return nil, homeError{who: "", reason: fmt.Sprintf("needed for substitution in '%s' on line %d", file.Name(), i)}
-				}
-				line = path.Join(home, line[1:])
-			} else if strings.HasPrefix(line, "~") {
-				// do user-specific home replacement (e.g. ~bob/Documents)
-				var nameEnd int = strings.IndexRune(line, os.PathSeparator)
-				if nameEnd == -1 {
-					nameEnd = len(line) // the entire line is a user directory
-				}
-				name := line[1:nameEnd]
-				home, err := getHomeDir(name)
-				if err != nil {
-					return nil, homeError{who: name, reason: fmt.Sprintf("needed for substitution in '%s' on line %d", file.Name(), i)}
-				}
-				line = path.Join(home, line[nameEnd:])
-			}
 			stage.rules = append(stage.rules, buildRule{glob: line, line: i})
 		}
 	}
@@ -429,18 +414,13 @@ func archiveFile(archiver *tar.Writer, path string) error {
 	return nil
 }
 
-func getHomeDir(who string) (string, error) {
-	var info *user.User
-	var err error
-	if who == "" {
-		info, err = user.Current()
-	} else {
-		info, err = user.Lookup(who)
-	}
+// goHome chdirs into our home directory
+func goHome() error {
+	me, err := user.Current()
 	if err != nil {
-		return "", err
+		return err
 	}
-	return info.HomeDir, nil
+	return os.Chdir(me.HomeDir)
 }
 
 // stage represents a single [include/exclude] directive
